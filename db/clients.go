@@ -16,6 +16,7 @@ var dbError error
 func Connect(connection string) {
 	Instance, dbError = gorm.Open(mysql.Open(connection), &gorm.Config{})
 	if dbError != nil {
+		log.Fatal(dbError)
 		panic("Failed connect to db")
 	}
 	log.Println("Connected to db")
