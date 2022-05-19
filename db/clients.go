@@ -1,29 +1,24 @@
 package db
 
 import (
+	"fmt"
 	"log"
 
-	"github.com/VyacheslavBurnashev/model"
-
+	"github.com/VyacheslavBurnashev/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-var Instance *gorm.DB
+type Database struct {
+	DB *gorm.DB
+}
 
-var dbError error
-
-func Connect(connection string) {
-	Instance, dbError = gorm.Open(mysql.Open(connection), &gorm.Config{})
+func (connection *Database) Connect(config *config.Config, logger *log.Logger) {
+	db, err := gorm.Open(mysql.Open("mysql", fmt.Sprintf("root:rootroot@tcp(localhost:3306/users@parseTime=true")), &gorm.Config{})
 	if dbError != nil {
 		log.Fatal(dbError)
 		panic("Failed connect to db")
 	}
 	log.Println("Connected to db")
 
-}
-
-func Migrated() {
-	Instance.AutoMigrate(&model.User{})
-	log.Println("Database Migration Completed")
 }

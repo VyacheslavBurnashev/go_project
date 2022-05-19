@@ -1,7 +1,12 @@
 package auth
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -10,44 +15,63 @@ import (
 var key = []byte("")
 
 type Claim struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	AuthInfo   string `json:"AuthInfo"`
+	ErrMessage string `json:"ErrorMessage"`
+	Message    string `json:"Message"`
+
 	jwt.StandardClaims
 }
 
-func GenerateJWT(email string, username string) (tokenS string, err error) {
-	expTime := time.Now().Add(1 * time.Hour)
-	claims := &Claim{
-		Email:    email,
-		Username: username,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expTime.Unix(),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenS, err = token.SignedString(key)
-	return
+func Auth() {
+
 }
 
-func VToken(signedToken string) (err error) {
-	token, err := jwt.ParseWithClaims(
-		signedToken,
-		&Claim{},
-		func(token *jwt.Token) (interface{}, error) {
-			return []byte(key), nil
-		},
-	)
+func GenerateJWT(email string, username string) (string, error) {
+	claims := jwt.MapClaims{}
+	claims["authorized"] = true
+	claims["username"] = username
+	claims["exp"] = time.Now().Add(time.Hour * 1).Unix()
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	return token.SignedString([]byte(os.Getenv("API_SECRET")))
+
+}
+func Pretty(data interface{}) {
+	b, err := json.MarshalIndent(data, "", " ")
 	if err != nil {
+		log.Println(err)
 		return
 	}
-	claims, ok := token.Claims.(*Claim)
-	if !ok {
-		err = errors.New("not parsed")
-		return
+	fmt.Println(string(b))
+}
+
+func ExtractToken(r *http.Request) string {
+	keys := r.URL.Query()
+	token := keys.Get("token")
+	if token != "" {
+		return token
 	}
-	if claims.ExpiresAt < time.Now().Local().Unix() {
-		err = errors.New("token expired")
-		return
+	bToken := r.Header.Get("Authorization")
+	if len(strings.Split(bToken, " ")) == 2 {
+		return strings.Split(bToken, " ")[1]
 	}
-	return
+	return ""
+}
+
+func TokenValid(r *http.Request) error {
+	tokenString := ExtractToken(r)
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("API_SECRET")), nil
+	})
+	if err != nil {
+		return nil
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		Pretty(claims)
+	}
+	return nil
 }
